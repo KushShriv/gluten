@@ -52,7 +52,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-native-lib-centos-7:
+  build-native-lib-centos-8:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
@@ -67,21 +67,19 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-enhanced-centos7-release-default-${{github.sha}}
+          key: ccache-enhanced-centos8-release-default-${{github.sha}}
           restore-keys: |
-            ccache-enhanced-centos7-release-default
+            ccache-enhanced-centos8-release-default
       - name: Build Gluten native libraries
         run: |
-          docker pull apache/gluten:vcpkg-centos-7-gcc13
-          docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:vcpkg-centos-7-gcc13 bash -c "
+          docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:vcpkg-almalinux-8-gcc13 bash -c "
             set -e
-            yum install tzdata -y
             df -a
             cd /work
             export CCACHE_DIR=/work/.ccache
             export CCACHE_MAXSIZE=1G
             mkdir -p /work/.ccache
-            bash dev/ci-velox-buildstatic-centos-7-enhanced-features.sh
+            bash dev/ci-velox-buildstatic-centos-8-enhanced-features.sh
             ccache -s
           "
 
@@ -90,15 +88,15 @@ jobs:
         id: ccache
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-enhanced-centos7-release-default-${{github.sha}}
+          key: ccache-enhanced-centos8-release-default-${{github.sha}}
       - uses: actions/upload-artifact@v7
         with:
-          name: velox-native-lib-enhanced-centos-7-${{github.sha}}
+          name: velox-native-lib-enhanced-centos-8-${{github.sha}}
           path: ./cpp/build/releases/
           if-no-files-found: error
 
   spark-test-spark35:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     container: apache/gluten:centos-8-jdk8
     steps:
@@ -106,7 +104,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-enhanced-centos-7-${{github.sha}}
+          name: velox-native-lib-enhanced-centos-8-${{github.sha}}
           path: ./cpp/build/releases
       - name: Prepare spark.test.home for Spark 3.5.5 (other tests)
         run: |
@@ -151,7 +149,7 @@ jobs:
           path: /tmp/tpch-approved-plan/**
 
   spark-test-spark35-slow:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     env: #TODO remove after image update
       LANG: C.UTF-8
@@ -162,7 +160,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-enhanced-centos-7-${{github.sha}}
+          name: velox-native-lib-enhanced-centos-8-${{github.sha}}
           path: ./cpp/build/releases
       - name: Prepare Spark Resources for Spark 3.5.5 #TODO remove after image update
         run: |
@@ -198,7 +196,7 @@ jobs:
             **/gluten-ut/**/core.*
 
   spark-test-spark40:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -212,7 +210,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-enhanced-centos-7-${{github.sha}}
+          name: velox-native-lib-enhanced-centos-8-${{github.sha}}
           path: ./cpp/build/releases/
       - name: Prepare
         run: |

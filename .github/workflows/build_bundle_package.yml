@@ -50,16 +50,16 @@ jobs:
         uses: actions/cache/restore@v3
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos7-release-default-${{github.sha}}
+          key: ccache-centos8-release-default-${{github.sha}}
           restore-keys: |
-            ccache-centos7-release-default
+            ccache-centos8-release-default
       - name: Build Gluten velox third party
         run: |
-          docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:vcpkg-centos-7-gcc13 bash -c "
+          docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:vcpkg-almalinux-8-gcc13 bash -c "
             df -a
             cd /work
             export CCACHE_DIR=/work/.ccache
-            bash dev/ci-velox-buildstatic-centos-7.sh
+            bash dev/ci-velox-buildstatic-centos-8.sh
             ccache -s
             mkdir -p /work/.m2/repository/org/apache/arrow/
             cp -r /root/.m2/repository/org/apache/arrow/* /work/.m2/repository/org/apache/arrow/
@@ -74,7 +74,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           path: ${{ github.workspace }}/.m2/repository/org/apache/arrow/
-          name: velox-arrow-jar-centos-7-${{github.sha}}
+          name: velox-arrow-jar-centos-8-${{github.sha}}
 
   build-bundle-package-centos8:
     needs: build-native-lib
@@ -92,12 +92,10 @@ jobs:
       - name: Download All Arrow Jar Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-arrow-jar-centos-7-${{github.sha}}
+          name: velox-arrow-jar-centos-8-${{github.sha}}
           path: /root/.m2/repository/org/apache/arrow/
       - name: Setup java
         run: |
-          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-* && \
-          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-* && \
           yum update -y && yum install -y java-1.8.0-openjdk-devel
       - name: Build for Spark ${{ github.event.inputs.spark }}
         run: |

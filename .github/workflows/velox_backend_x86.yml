@@ -55,7 +55,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-native-lib-centos-7:
+  build-native-lib-centos-8:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
@@ -70,21 +70,20 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos7-release-default-${{github.sha}}
+          key: ccache-centos8-release-default-${{github.sha}}
           restore-keys: |
-            ccache-centos7-release-default
+            ccache-centos8-release-default
       - name: Build Gluten native libraries
         run: |
-          docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:vcpkg-centos-7-gcc13 bash -c "
+          docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:vcpkg-almalinux-8-gcc13 bash -c "
             set -e
-            yum install tzdata -y
             df -a
             cd /work
             export CCACHE_DIR=/work/.ccache
             export CCACHE_MAXSIZE=1G
             mkdir -p /work/.ccache
             ccache -sz
-            bash dev/ci-velox-buildstatic-centos-7.sh
+            bash dev/ci-velox-buildstatic-centos-8.sh
             ccache -s
           "
 
@@ -94,15 +93,15 @@ jobs:
         id: ccache
         with:
           path: '${{ env.CCACHE_DIR }}'
-          key: ccache-centos7-release-default-${{github.sha}}
+          key: ccache-centos8-release-default-${{github.sha}}
       - uses: actions/upload-artifact@v7
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
           if-no-files-found: error
 
   tpc-test-ubuntu:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     strategy:
       fail-fast: false
       matrix:
@@ -147,7 +146,7 @@ jobs:
       - name: Download All Native Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Setup tzdata
         run: |
@@ -231,7 +230,7 @@ jobs:
           fi
 
   tpc-test-centos8:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     strategy:
       fail-fast: false
       matrix:
@@ -264,14 +263,8 @@ jobs:
       - name: Download All Native Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
-      - name: Update mirror list
-        run: |
-          if [ "${{ matrix.os }}" = "centos:7" ] || [ "${{ matrix.os }}" = "centos:8" ]; then
-            sed -i -e "s|mirrorlist=|#mirrorlist=|g" /etc/yum.repos.d/CentOS-* || true
-            sed -i -e "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-* || true
-          fi
       - name: Setup java
         run: |
           if [ "${{ matrix.java }}" = "java-17" ]; then
@@ -313,51 +306,8 @@ jobs:
           GLUTEN_IT_JVM_ARGS=-Xmx6G sbin/gluten-it.sh queries-compare \
             --local --preset=velox --benchmark-type=ds --error-on-memleak --off-heap-size=10g -s=1.0 --threads=16 --iterations=1
 
-  tpc-test-centos7:
-    needs: build-native-lib-centos-7
-    strategy:
-      fail-fast: false
-      matrix:
-        spark: [ "spark-3.5" ]
-        java: [ "java-8" ]
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Download All Native Artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: velox-native-lib-centos-7-${{github.sha}}
-          path: ./cpp/build/
-      - name: Build and run TPCH/DS tests
-        run: |
-          docker pull centos:7
-          docker run -v $GITHUB_WORKSPACE:/work -v /$GITHUB_WORKSPACE/.m2:/root/.m2/ -w /work \
-          -e matrix.java=${{ matrix.java }} -e matrix.spark=${{ matrix.spark }} \
-          centos:7 \
-          bash -c "
-            set -e
-            sed -i -e 's|mirrorlist=|#mirrorlist=|g' /etc/yum.repos.d/CentOS-* || true
-            sed -i -e 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-* || true
-
-            yum update -y && yum install -y java-1.8.0-openjdk-devel wget tzdata python3-pip
-            # Set environment variables
-            export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
-
-            # Build gluten
-            build/mvn -ntp clean install -P${{ matrix.spark }} -P${{ matrix.java }} -Pbackends-velox -DskipTests
-            # Build gluten-it
-            cd /work/tools/gluten-it
-            /work/build/mvn -ntp clean install -P${{ matrix.spark }} -P${{ matrix.java }}
-
-            # Run TPC-H / TPC-DS
-            GLUTEN_IT_JVM_ARGS=-Xmx5G sbin/gluten-it.sh queries-compare \
-              --local --preset=velox --benchmark-type=h --error-on-memleak --off-heap-size=10g -s=1.0 --threads=16 --iterations=1
-            GLUTEN_IT_JVM_ARGS=-Xmx6G sbin/gluten-it.sh queries-compare \
-              --local --preset=velox --benchmark-type=ds --error-on-memleak --off-heap-size=10g -s=1.0 --threads=16 --iterations=1
-          "
-
   tpc-test-ubuntu-oom:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     strategy:
       fail-fast: false
       matrix:
@@ -380,7 +330,7 @@ jobs:
       - name: Download All Native Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Setup java
         run: |
@@ -467,7 +417,7 @@ jobs:
             -d=IO_THREADS:0,spark.gluten.sql.columnar.backend.velox.IOThreads=0
 
   tpc-test-ubuntu-randomkill:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     strategy:
       fail-fast: false
       matrix:
@@ -491,7 +441,7 @@ jobs:
       - name: Download All Native Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Setup java
         run: |
@@ -515,7 +465,7 @@ jobs:
             --data-gen=skip  --random-kill-tasks --no-session-reuse --shard=${{ matrix.shard }}/3
 
   tpc-test-centos8-uniffle:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     strategy:
       fail-fast: false
       matrix:
@@ -529,7 +479,7 @@ jobs:
       - name: Download All Native Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Install Uniffle ${{ matrix.uniffle }}
         run: |
@@ -561,7 +511,7 @@ jobs:
             --local --preset=velox-with-uniffle --benchmark-type=h --error-on-memleak --off-heap-size=10g -s=1.0 --threads=16 --iterations=1
 
   tpc-test-ubuntu-2204-celeborn:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     strategy:
       fail-fast: false
       matrix:
@@ -575,12 +525,8 @@ jobs:
       - name: Download All Native Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
-      - name: Update mirror list
-        run: |
-          sed -i -e "s|mirrorlist=|#mirrorlist=|g" /etc/yum.repos.d/CentOS-* || true
-          sed -i -e "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-* || true
       - name: Setup java and maven
         run: |
           yum update -y && yum install -y java-1.8.0-openjdk-devel wget
@@ -634,7 +580,7 @@ jobs:
           fi
 
   spark-test-spark33:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     env:
       SPARK_TESTING: true
@@ -644,7 +590,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare
         run: |
@@ -687,7 +633,7 @@ jobs:
           path: /tmp/tpch-approved-plan/**
 
   spark-test-spark33-slow:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     env:
       SPARK_TESTING: true
@@ -699,7 +645,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare Spark Resources for Spark 3.3.1 #TODO remove after image update
         run: |
@@ -736,7 +682,7 @@ jobs:
             **/gluten-ut/**/core.*
 
   spark-test-spark34:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -748,7 +694,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare spark.test.home for Spark 3.4.4 (other tests)
         run: |
@@ -803,7 +749,7 @@ jobs:
           path: /tmp/tpch-approved-plan/**
 
   spark-test-spark34-slow:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -818,7 +764,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare Spark Resources for Spark 3.4.4 #TODO remove after image update
         run: |
@@ -858,7 +804,7 @@ jobs:
             **/gluten-ut/**/core.*
 
   spark-test-spark35:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -872,7 +818,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare
         run: |
@@ -926,7 +872,7 @@ jobs:
           path: /tmp/tpch-approved-plan/**
 
   spark-test-spark35-scala213:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -940,7 +886,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare
         run: |
@@ -988,7 +934,7 @@ jobs:
             **/gluten-ut/**/core.*
 
   spark-test-spark35-slow:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -1004,7 +950,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare Spark Resources for Spark 3.5.5 #TODO remove after image update
         run: |
@@ -1035,6 +981,99 @@ jobs:
       - name: Upload unit tests log files
         if: ${{ !success() }}
         uses: actions/upload-artifact@v7
+        with:
+          name: ${{ github.job }}-test-log
+          path: |
+            **/target/*.log
+            **/gluten-ut/**/hs_err_*.log
+            **/gluten-ut/**/core.*
+
+  spark-test-spark35-smj:
+    needs: build-native-lib-centos-8
+    runs-on: ubuntu-22.04
+    env:
+      SPARK_TESTING: true
+    container: apache/gluten:centos-8-jdk8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: velox-native-lib-centos-8-${{github.sha}}
+          path: ./cpp/build/
+      - name: Prepare
+        run: |
+          dnf module -y install python39 && \
+          alternatives --set python3 /usr/bin/python3.9 && \
+          pip3 install setuptools==77.0.3 && \
+          pip3 install pyspark==3.5.5 cython && \
+          pip3 install pandas==2.2.3 pyarrow==20.0.0
+      - name: Build and Run unit test for Spark 3.5.5 (other tests)
+        run: |
+          cd $GITHUB_WORKSPACE/
+          export SPARK_SCALA_VERSION=2.12
+          yum install -y java-17-openjdk-devel
+          export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+          export PATH=$JAVA_HOME/bin:$PATH
+          java -version
+          $MVN_CMD clean test -Pspark-3.5 -Pjava-17 -Pbackends-velox -Piceberg -Pdelta -Ppaimon -Pspark-ut \
+          -DargLine="-Dspark.test.home=/opt/shims/spark35/spark_home/ -Dspark.gluten.sql.columnar.forceShuffledHashJoin=false" \
+          -DtagsToExclude=org.apache.spark.tags.ExtendedSQLTest,org.apache.spark.tags.SlowHiveTest,org.apache.gluten.tags.UDFTest,org.apache.gluten.tags.EnhancedFeaturesTest,org.apache.gluten.tags.SkipTest
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-report
+          path: '**/surefire-reports/TEST-*.xml'
+      - name: Upload unit tests log files
+        if: ${{ !success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-test-log
+          path: |
+            **/target/*.log
+            **/gluten-ut/**/hs_err_*.log
+            **/gluten-ut/**/core.*
+
+  spark-test-spark35-slow-smj:
+    needs: build-native-lib-centos-8
+    runs-on: ubuntu-22.04
+    env:
+      SPARK_TESTING: true
+      LANG: C.UTF-8 #TODO remove after image update
+      LC_ALL: C.UTF-8
+    container: apache/gluten:centos-8-jdk8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: velox-native-lib-centos-8-${{github.sha}}
+          path: ./cpp/build/
+      - name: Prepare Spark Resources for Spark 3.5.5 #TODO remove after image update
+        run: |
+          rm -rf /opt/shims/spark35
+          bash .github/workflows/util/install-spark-resources.sh 3.5
+      - name: Build and Run unit test for Spark 3.5.5 (slow tests)
+        run: |
+          cd $GITHUB_WORKSPACE/
+          yum install -y java-17-openjdk-devel
+          export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+          export PATH=$JAVA_HOME/bin:$PATH
+          java -version
+          $MVN_CMD clean test -Pspark-3.5 -Pjava-17 -Pbackends-velox -Piceberg -Pdelta -Ppaimon -Pspark-ut \
+          -DargLine="-Dspark.test.home=/opt/shims/spark35/spark_home/ -Dspark.gluten.sql.columnar.forceShuffledHashJoin=false" \
+          -DtagsToInclude=org.apache.spark.tags.ExtendedSQLTest
+          $MVN_CMD clean test -Pspark-3.5 -Pjava-17 -Pbackends-velox -Piceberg -Pdelta -Ppaimon -Pspark-ut \
+          -DargLine="-Dspark.test.home=/opt/shims/spark35/spark_home/ -Dspark.gluten.sql.columnar.forceShuffledHashJoin=false" \
+          -DtagsToInclude=org.apache.spark.tags.SlowHiveTest
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-report
+          path: '**/surefire-reports/TEST-*.xml'
+      - name: Upload unit tests log files
+        if: ${{ !success() }}
+        uses: actions/upload-artifact@v4
         with:
           name: spark-test-spark35-slow-${{ matrix.suite }}-test-log
           path: |
@@ -1186,7 +1225,7 @@ jobs:
           $MVN_CMD clean test-compile -Pspark-4.0 -Pscala-2.13 -Pbackends-velox -Pspark-ut -Piceberg,iceberg-test,delta,paimon -Pfast-build
 
   spark-test-spark40:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -1200,7 +1239,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare
         run: |
@@ -1252,7 +1291,7 @@ jobs:
             **/gluten-ut/**/core.*
 
   spark-test-spark40-slow:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -1268,7 +1307,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare Spark Resources for Spark 4.0.2 #TODO remove after image update
         run: |
@@ -1307,7 +1346,7 @@ jobs:
             **/gluten-ut/**/core.*
 
   spark-test-spark41:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -1325,7 +1364,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare
         run: |
@@ -1382,7 +1421,7 @@ jobs:
             **/gluten-ut/**/core.*
 
   spark-test-spark41-slow:
-    needs: build-native-lib-centos-7
+    needs: build-native-lib-centos-8
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -1399,7 +1438,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
-          name: velox-native-lib-centos-7-${{github.sha}}
+          name: velox-native-lib-centos-8-${{github.sha}}
           path: ./cpp/build/
       - name: Prepare Spark Resources for Spark 4.1.1 #TODO remove after image update
         run: |

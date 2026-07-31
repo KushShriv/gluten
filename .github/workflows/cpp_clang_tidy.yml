@@ -63,7 +63,7 @@ jobs:
         with:
           github_token: ${{secrets.GITHUB_TOKEN}}
           workflow: .github/workflows/velox_backend_x86.yml
-          name: velox-native-lib-centos-7-${{ github.event.workflow_run.head_sha }}
+          name: velox-native-lib-centos-8-${{ github.event.workflow_run.head_sha }}
           commit: ${{ github.event.workflow_run.head_sha }}
           workflow_conclusion: ""
           check_artifacts: true
