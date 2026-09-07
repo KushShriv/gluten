@@ -44,7 +44,14 @@ RUN set -ex; \
     dnf install -y ccache; \
     # gcc-toolset-13 ships GCC 13 on RHEL8-family via Red Hat Software Collections. \
     dnf install -y --setopt=install_weak_deps=False gcc-toolset-13; \
-    dnf install -y java-1.8.0-openjdk-devel patch git wget perl python3 automake libtool flex; \
+    dnf install -y java-1.8.0-openjdk-devel patch git wget perl automake libtool flex bison jq; \
+    # python38 ships Python 3.8 which is required by the Apache Stash GHA action \
+    # (subprocess.run capture_output= needs Python >= 3.7; AlmaLinux 8 default is 3.6). \
+    dnf module -y install python38; \
+    alternatives --set python3 /usr/bin/python3.8; \
+    # GitHub CLI (gh) is required by the Apache Stash GHA action. \
+    dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo; \
+    dnf install -y gh --setopt=gpgcheck=0; \
     dnf -y --enablerepo=powertools install autoconf-archive ninja-build; \
     # Install a recent CMake binary — the version in EPEL 8 is too old for Velox. \
     wget https://github.com/Kitware/CMake/releases/download/v3.31.12/cmake-3.31.12-linux-$(uname -m).sh; \
