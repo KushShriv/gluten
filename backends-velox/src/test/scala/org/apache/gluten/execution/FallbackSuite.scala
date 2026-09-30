@@ -409,7 +409,7 @@ class FallbackSuite extends VeloxWholeStageTransformerSuite with AdaptiveSparkPl
 
   // Regression test: Java \uXXXX Unicode escapes in rlike patterns used to cause a
   // "Pattern ... compilation failed in RE2" fallback. After the fix, these patterns are
-  // translated to RE2 \x{XXXX} syntax and run natively — no rlike regex fallback should occur.
+  // translated to RE2 \x{XXXX} syntax and run natively -- no rlike regex fallback should occur.
   test("no fallback when join post filter contains Java Unicode escape in rlike pattern") {
     GlutenSuiteUtils.withFallbackEventListener(spark.sparkContext) {
       events =>
@@ -441,7 +441,7 @@ class FallbackSuite extends VeloxWholeStageTransformerSuite with AdaptiveSparkPl
     withSQLConf(GlutenConfig.GLUTEN_ENABLED.key -> "false") {
       GlutenSuiteUtils.withFallbackEventListener(spark.sparkContext) {
         events =>
-          // Execute a query with gluten disabled — this mimics what runQueryAndCompare does for
+          // Execute a query with gluten disabled -- this mimics what runQueryAndCompare does for
           // the vanilla baseline run. No GlutenPlanFallbackEvent should be emitted at all.
           spark.sql("SELECT c1, count(*) FROM tmp1 GROUP BY c1").collect()
           GlutenSuiteUtils.waitUntilEmpty(spark.sparkContext)
