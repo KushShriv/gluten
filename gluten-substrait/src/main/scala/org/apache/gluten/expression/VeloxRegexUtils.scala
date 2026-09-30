@@ -27,8 +27,8 @@ object VeloxRegexUtils {
    *
    * Returns Some(translated) if all constructs have RE2 equivalents and the translation is
    * lossless. Returns None if the pattern contains constructs that RE2 cannot represent
-   * (lookaheads, lookbehinds, backreferences) — the caller should throw GlutenNotSupportException
-   * to trigger fallback.
+   * (lookaheads, lookbehinds, backreferences); the caller should throw GlutenNotSupportException to
+   * trigger fallback.
    */
   def translateJavaPatternToRe2(pattern: String): Option[String] = {
     if (containsUnsupportedConstruct(pattern)) None
@@ -46,9 +46,9 @@ object VeloxRegexUtils {
   }
 
   /**
-   * Converts Java \uXXXX Unicode escapes (exactly 4 hex digits) to RE2's \x{XXXX} form. Any \u not
-   * followed by exactly 4 hex digits is left unchanged. Already-translated \x{XXXX} sequences are
-   * not reprocessed (idempotent).
+   * Converts Java Unicode escapes of the form backslash-u followed by exactly 4 hex digits to RE2's
+   * \x{XXXX} form. Any backslash-u not followed by exactly 4 hex digits is left unchanged.
+   * Already-translated \x{XXXX} sequences are not reprocessed (idempotent).
    */
   def translateUnicodeEscapes(pattern: String): String = {
     val sb = new StringBuilder(pattern.length)

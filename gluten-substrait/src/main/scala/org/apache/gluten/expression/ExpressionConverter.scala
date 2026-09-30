@@ -959,10 +959,11 @@ object ExpressionConverter extends SQLConfHelper with Logging {
 
   /**
    * Translates the pattern argument of a regex expression to RE2 syntax before it is written into
-   * the Substrait literal. If the pattern is a string literal, Java `\uXXXX` Unicode escapes are
-   * converted to RE2's `\x{XXXX}` form. Patterns that contain constructs with no RE2 equivalent
-   * (lookaheads, lookbehinds, backreferences) throw [[GlutenNotSupportException]] to trigger
-   * graceful fallback. Non-literal (column-referenced) patterns are passed through unchanged.
+   * the Substrait literal. If the pattern is a string literal, Java Unicode escapes (backslash-u
+   * followed by 4 hex digits) are converted to RE2's `\x{XXXX}` form. Patterns that contain
+   * constructs with no RE2 equivalent (lookaheads, lookbehinds, backreferences) throw
+   * [[GlutenNotSupportException]] to trigger graceful fallback. Non-literal (column-referenced)
+   * patterns are passed through unchanged.
    */
   private def withRe2PatternTranslation(
       patternChild: Expression,
