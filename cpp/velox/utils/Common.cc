@@ -56,7 +56,7 @@ std::string translateJavaUnicodeToRe2(const std::string& pattern) {
   std::string result;
   result.reserve(pattern.size());
   for (size_t i = 0; i < pattern.size(); ++i) {
-    if (i + 5 < pattern.size() && // at least 6 chars remain: \ u X X X X
+    if (i + 6 <= pattern.size() && // at least 6 chars remain: \ u X X X X
         pattern[i] == '\\' && pattern[i + 1] == 'u' && std::isxdigit(static_cast<unsigned char>(pattern[i + 2])) &&
         std::isxdigit(static_cast<unsigned char>(pattern[i + 3])) &&
         std::isxdigit(static_cast<unsigned char>(pattern[i + 4])) &&
