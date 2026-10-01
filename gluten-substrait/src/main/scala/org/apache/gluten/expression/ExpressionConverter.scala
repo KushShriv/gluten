@@ -976,7 +976,7 @@ object ExpressionConverter extends SQLConfHelper with Logging {
       expressionsMap: Map[Class[_], String]): ExpressionTransformer = {
     patternChild match {
       case Literal(patStr: UTF8String, StringType) =>
-        val translated = VeloxRegexUtils
+        val translated = Re2PatternUtils
           .translateJavaPatternToRe2(patStr.toString)
           .getOrElse(throw new GlutenNotSupportException(
             s"Regex pattern '$patStr' uses constructs (lookahead/lookbehind/backreference) " +

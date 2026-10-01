@@ -17,18 +17,18 @@
 package org.apache.gluten.expression
 
 /**
- * Utilities for translating regex patterns from Java syntax to RE2 syntax. Called by
- * ExpressionConverter when building the native Substrait plan.
+ * Utilities for translating regex patterns from Java syntax to RE2 syntax. Used by
+ * ExpressionConverter for any backend whose native engine is RE2 (Velox, Bolt).
  */
-object VeloxRegexUtils {
+object Re2PatternUtils {
 
   /**
    * Attempts to translate a Java regex pattern to RE2-compatible syntax.
    *
    * Returns Some(translated) if all constructs have RE2 equivalents and the translation is
    * lossless. Returns None if the pattern contains constructs that RE2 cannot represent
-   * (lookaheads, lookbehinds, backreferences); the caller should throw GlutenNotSupportException to
-   * trigger fallback.
+   * (lookaheads, lookbehinds, backreferences); the caller should throw
+   * [[org.apache.gluten.exception.GlutenNotSupportException]] to trigger fallback.
    */
   def translateJavaPatternToRe2(pattern: String): Option[String] = {
     if (containsUnsupportedConstruct(pattern)) None
