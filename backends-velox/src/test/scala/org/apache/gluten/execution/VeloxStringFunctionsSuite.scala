@@ -683,7 +683,7 @@ class VeloxStringFunctionsSuite extends VeloxWholeStageTransformerSuite {
   // that CJK Unicode range patterns run natively on Velox instead of falling back to the JVM.
   test("rlike with Java Unicode escape runs natively") {
     runQueryAndCompare(
-      s"select l_orderkey, rlike(l_comment, '[\\u0041-\\u005A]+') " +
+      "select l_orderkey, rlike(l_comment, '[\\u0041-\\u005A]+') " +
         s"from $LINEITEM_TABLE limit $LENGTH")(checkGlutenPlan[ProjectExecTransformer])
   }
 

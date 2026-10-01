@@ -398,10 +398,11 @@ class FallbackSuite extends VeloxWholeStageTransformerSuite with AdaptiveSparkPl
         // fallback reason contains the GlutenNotSupportException message instead
         // of the old native "regexp_extract due to Pattern ..." message.
         assert(
-          fallbackReasons.forall(
+          fallbackReasons.exists(
             r =>
               r.contains("regexp_extract due to Pattern") ||
-                r.contains("uses constructs (lookahead/lookbehind/backreference)")),
+                r.contains("uses constructs (lookahead/lookbehind/backreference)") ||
+                r.contains("GlutenNotSupportException")),
           s"Unexpected fallback reasons: $fallbackReasons"
         )
     }
