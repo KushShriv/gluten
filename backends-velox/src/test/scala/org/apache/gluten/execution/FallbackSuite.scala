@@ -427,7 +427,9 @@ class FallbackSuite extends VeloxWholeStageTransformerSuite with AdaptiveSparkPl
           case _: BroadcastHashJoinExecTransformerBase => true
           case _ => false
         }
-        assert(broadcastHashJoin.isDefined, "Expected BroadcastHashJoin to run natively but it fell back")
+        assert(
+          broadcastHashJoin.isDefined,
+          "Expected BroadcastHashJoin to run natively but it fell back")
         val fallbackReasons = events.flatMap(_.fallbackNodeToReason.values)
         assert(
           fallbackReasons.forall(!_.contains("rlike due to Pattern")),
