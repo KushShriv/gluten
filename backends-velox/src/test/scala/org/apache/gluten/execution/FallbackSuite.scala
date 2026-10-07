@@ -408,9 +408,9 @@ class FallbackSuite extends VeloxWholeStageTransformerSuite with AdaptiveSparkPl
     }
   }
 
-  // Regression test: Java \uXXXX Unicode escapes in rlike patterns used to cause a
+  // Regression test: Java \\uXXXX Unicode escapes in rlike patterns used to cause a
   // "Pattern ... compilation failed in RE2" fallback. After the fix, these patterns are
-  // translated to RE2 \x{XXXX} syntax and run natively -- no rlike regex fallback should occur.
+  // translated to RE2 \\x{XXXX} syntax and run natively -- no rlike regex fallback should occur.
   test("no fallback when join post filter contains Java Unicode escape in rlike pattern") {
     GlutenSuiteUtils.withFallbackEventListener(spark.sparkContext) {
       events =>
@@ -424,9 +424,10 @@ class FallbackSuite extends VeloxWholeStageTransformerSuite with AdaptiveSparkPl
         GlutenSuiteUtils.waitUntilEmpty(spark.sparkContext)
 
         val broadcastHashJoin = find(df.queryExecution.executedPlan) {
-          _.isInstanceOf[BroadcastHashJoinExec]
+          case _: BroadcastHashJoinExecTransformerBase => true
+          case _ => false
         }
-        assert(broadcastHashJoin.isDefined)
+        assert(broadcastHashJoin.isDefined, "Expected BroadcastHashJoin to run natively but it fell back")
         val fallbackReasons = events.flatMap(_.fallbackNodeToReason.values)
         assert(
           fallbackReasons.forall(!_.contains("rlike due to Pattern")),

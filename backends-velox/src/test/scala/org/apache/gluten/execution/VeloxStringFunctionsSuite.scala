@@ -679,11 +679,12 @@ class VeloxStringFunctionsSuite extends VeloxWholeStageTransformerSuite {
         s"from $LINEITEM_TABLE limit $LENGTH")(checkGlutenPlan[ProjectExecTransformer])
   }
 
-  // Regression test: Java \uXXXX Unicode escapes must be translated to RE2 \x{XXXX} syntax so
+  // Regression test: Java \\uXXXX Unicode escapes must be translated to RE2 \\x{XXXX} syntax so
   // that CJK Unicode range patterns run natively on Velox instead of falling back to the JVM.
   test("rlike with Java Unicode escape runs natively") {
+    val pattern = "[\\u0041-\\u005A]+"
     runQueryAndCompare(
-      "select l_orderkey, rlike(l_comment, '[\\u0041-\\u005A]+') " +
+      s"select l_orderkey, rlike(l_comment, '$pattern') " +
         s"from $LINEITEM_TABLE limit $LENGTH")(checkGlutenPlan[ProjectExecTransformer])
   }
 
