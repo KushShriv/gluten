@@ -678,4 +678,41 @@ class VeloxStringFunctionsSuite extends VeloxWholeStageTransformerSuite {
       s"select l_orderkey, unbase64(base64(l_comment)) " +
         s"from $LINEITEM_TABLE limit $LENGTH")(checkGlutenPlan[ProjectExecTransformer])
   }
+
+  // Regression test: Java \\uXXXX Unicode escapes must be translated to RE2 \\x{XXXX} syntax so
+  // that CJK Unicode range patterns run natively on Velox instead of falling back to the JVM.
+  test("rlike with Java Unicode escape runs natively") {
+    val pattern = "[\\u0041-\\u005A]+"
+    runQueryAndCompare(
+      s"select l_orderkey, rlike(l_comment, '$pattern') " +
+        s"from $LINEITEM_TABLE limit $LENGTH")(checkGlutenPlan[ProjectExecTransformer])
+  }
+
+  // Java surrogate pair escapes (backslash-u high + low) must be combined into one RE2 code point.
+  test("rlike with Java surrogate pair escape runs natively") {
+    withTempView("emoji_t") {
+      Seq("a\uD83D\uDE00b", "plain", "\uD83D\uDE4F").toDF("s").createOrReplaceTempView("emoji_t")
+      // SQL literal parsing consumes one level of backslashes, so double them.
+      runQueryAndCompare("select s, rlike(s, '[\\\\uD83D\\\\uDE00-\\\\uD83D\\\\uDE4F]') from emoji_t")(
+        checkGlutenPlan[ProjectExecTransformer])
+    }
+  }
+
+  // An escaped backslash followed by u0041 is literal text, not a unicode escape.
+  test("rlike with escaped backslash before u is not translated") {
+    withTempView("bs_t") {
+      Seq("\\u0041", "A").toDF("s").createOrReplaceTempView("bs_t")
+      runQueryAndCompare("select s, rlike(s, '\\\\\\\\u0041') from bs_t")(
+        checkGlutenPlan[ProjectExecTransformer])
+    }
+  }
+
+  // Regression test: lookbehind patterns have no RE2 equivalent and must still fall back
+  // gracefully to the Spark JVM engine rather than crashing or producing wrong results.
+  test("rlike with lookbehind falls back to JVM") {
+    runQueryAndCompare(
+      s"""select rlike(l_comment, "(?<=x)y") from $LINEITEM_TABLE limit 5""",
+      true,
+      false)(_ => {})
+  }
 }

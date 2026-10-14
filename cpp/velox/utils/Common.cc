@@ -17,6 +17,10 @@
 
 #include "Common.h"
 
+#include <cctype>
+#include <cstdio>
+#include <string>
+
 namespace gluten {
 
 // Note: This method is mostly copied from velox/functions/sparksql/RegexFunctions.cpp
@@ -52,13 +56,73 @@ std::unique_ptr<re2::RE2> compilePattern(const std::string& pattern) {
   return std::make_unique<re2::RE2>(re2::StringPiece(pattern), RE2::Quiet);
 }
 
+namespace {
+// Parses a Java \uXXXX escape at pattern[i]; returns the code unit, or -1 if there is none.
+int parseJavaUnicodeEscape(const std::string& pattern, size_t i) {
+  if (i + 6 > pattern.size() || pattern[i] != '\\' || pattern[i + 1] != 'u') {
+    return -1;
+  }
+  for (size_t k = 2; k < 6; ++k) {
+    if (!std::isxdigit(static_cast<unsigned char>(pattern[i + k]))) {
+      return -1;
+    }
+  }
+  return static_cast<int>(std::stoul(pattern.substr(i + 2, 4), nullptr, 16));
+}
+} // namespace
+
+std::string translateJavaUnicodeToRe2(const std::string& pattern) {
+  std::string result;
+  result.reserve(pattern.size());
+  size_t i = 0;
+  while (i < pattern.size()) {
+    if (pattern[i] != '\\') {
+      result += pattern[i++];
+      continue;
+    }
+    const int cu = parseJavaUnicodeEscape(pattern, i);
+    if (cu < 0) {
+      // Any other escape (including an escaped backslash) is copied verbatim as a pair, so that
+      // "\\\\u0041" (literal backslash followed by text) is not mistaken for a unicode escape.
+      result += pattern[i++];
+      if (i < pattern.size()) {
+        result += pattern[i++];
+      }
+      continue;
+    }
+    if (cu >= 0xD800 && cu <= 0xDBFF) {
+      const int lo = parseJavaUnicodeEscape(pattern, i + 6);
+      if (lo >= 0xDC00 && lo <= 0xDFFF) {
+        const unsigned cp =
+            0x10000 + ((static_cast<unsigned>(cu) - 0xD800) << 10) + (static_cast<unsigned>(lo) - 0xDC00);
+        char buf[16];
+        std::snprintf(buf, sizeof(buf), "\\x{%X}", cp);
+        result += buf;
+        i += 12;
+        continue;
+      }
+    }
+    if (cu >= 0xD800 && cu <= 0xDFFF) {
+      // Unpaired surrogate: leave untouched so that RE2 rejects it and the caller falls back.
+      result.append(pattern, i, 6);
+    } else {
+      result += "\\x{";
+      result.append(pattern, i + 2, 4);
+      result += '}';
+    }
+    i += 6;
+  }
+  return result;
+}
+
 bool validatePattern(const std::string& pattern, std::string& error) {
-  auto re2 = compilePattern(pattern);
+  const std::string translated = translateJavaUnicodeToRe2(pattern);
+  auto re2 = compilePattern(translated);
   if (!re2->ok()) {
     error = "Pattern " + pattern + " compilation failed in RE2. Reason: " + re2->error();
     return false;
   }
-  return ensureRegexIsCompatible(pattern, error);
+  return ensureRegexIsCompatible(translated, error);
 }
 
 } // namespace gluten
