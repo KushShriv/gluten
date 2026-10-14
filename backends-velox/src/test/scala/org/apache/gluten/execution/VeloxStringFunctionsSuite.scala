@@ -692,23 +692,34 @@ class VeloxStringFunctionsSuite extends VeloxWholeStageTransformerSuite {
 
   // Java surrogate pair escapes (backslash-u high + low) must be combined into one RE2 code point.
   test("rlike with Java surrogate pair escape runs natively") {
-    withTempView("emoji_t") {
-      // scalastyle:off nonascii
-      Seq("a\uD83D\uDE00b", "plain", "\uD83D\uDE4F").toDF("s").createOrReplaceTempView("emoji_t")
-      // scalastyle:on nonascii
-      // SQL literal parsing consumes one level of backslashes, so double them.
-      val pattern = "[\\\\uD83D\\\\uDE00-\\\\uD83D\\\\uDE4F]"
-      runQueryAndCompare(s"select s, rlike(s, '$pattern') from emoji_t")(
-        checkGlutenPlan[ProjectExecTransformer])
+    // Back the input with parquet: a LocalRelation is folded by the optimizer
+    // (ConvertToLocalRelation) before the projection ever reaches Gluten.
+    withTempPath {
+      dir =>
+        // scalastyle:off nonascii
+        val data = Seq("a\uD83D\uDE00b", "plain", "\uD83D\uDE4F")
+        // scalastyle:on nonascii
+        data.toDF("s").write.parquet(dir.getCanonicalPath)
+        withTempView("emoji_t") {
+          spark.read.parquet(dir.getCanonicalPath).createOrReplaceTempView("emoji_t")
+          // SQL literal parsing consumes one level of backslashes, so double them.
+          val pattern = "[\\\\uD83D\\\\uDE00-\\\\uD83D\\\\uDE4F]"
+          runQueryAndCompare(s"select s, rlike(s, '$pattern') from emoji_t")(
+            checkGlutenPlan[ProjectExecTransformer])
+        }
     }
   }
 
   // An escaped backslash followed by u0041 is literal text, not a unicode escape.
   test("rlike with escaped backslash before u is not translated") {
-    withTempView("bs_t") {
-      Seq("\\u0041", "A").toDF("s").createOrReplaceTempView("bs_t")
-      runQueryAndCompare("select s, rlike(s, '\\\\\\\\u0041') from bs_t")(
-        checkGlutenPlan[ProjectExecTransformer])
+    withTempPath {
+      dir =>
+        Seq("\\u0041", "A").toDF("s").write.parquet(dir.getCanonicalPath)
+        withTempView("bs_t") {
+          spark.read.parquet(dir.getCanonicalPath).createOrReplaceTempView("bs_t")
+          runQueryAndCompare("select s, rlike(s, '\\\\\\\\u0041') from bs_t")(
+            checkGlutenPlan[ProjectExecTransformer])
+        }
     }
   }
 
