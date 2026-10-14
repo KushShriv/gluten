@@ -29,6 +29,8 @@ class VeloxStringFunctionsSuite extends VeloxWholeStageTransformerSuite {
   override protected val resourcePath: String = "/tpch-data-parquet"
   override protected val fileFormat: String = "parquet"
 
+  import testImplicits._
+
   final val NULL_STR_COL: String = "nullStringColumn"
   final val LINEITEM_TABLE: String = "lineitem_nullStringColumn"
   final val LENGTH = 1000
@@ -691,9 +693,12 @@ class VeloxStringFunctionsSuite extends VeloxWholeStageTransformerSuite {
   // Java surrogate pair escapes (backslash-u high + low) must be combined into one RE2 code point.
   test("rlike with Java surrogate pair escape runs natively") {
     withTempView("emoji_t") {
+      // scalastyle:off nonascii
       Seq("a\uD83D\uDE00b", "plain", "\uD83D\uDE4F").toDF("s").createOrReplaceTempView("emoji_t")
+      // scalastyle:on nonascii
       // SQL literal parsing consumes one level of backslashes, so double them.
-      runQueryAndCompare("select s, rlike(s, '[\\\\uD83D\\\\uDE00-\\\\uD83D\\\\uDE4F]') from emoji_t")(
+      val pattern = "[\\\\uD83D\\\\uDE00-\\\\uD83D\\\\uDE4F]"
+      runQueryAndCompare(s"select s, rlike(s, '$pattern') from emoji_t")(
         checkGlutenPlan[ProjectExecTransformer])
     }
   }

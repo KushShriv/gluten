@@ -16,6 +16,8 @@
  */
 package org.apache.gluten.expression
 
+import java.util.Locale
+
 /**
  * Utilities for translating regex patterns from Java syntax to RE2 syntax. Used by
  * ExpressionConverter for any backend whose native engine is RE2 (Velox, Bolt); see
@@ -68,7 +70,8 @@ object Re2PatternUtils {
             val lo = unicodeEscapeAt(pattern, i + 6)
             if (lo < 0 || !Character.isLowSurrogate(lo.toChar)) return None
             val full = Character.toCodePoint(cp.toChar, lo.toChar)
-            sb.append("\\x{").append(Integer.toHexString(full).toUpperCase).append("}")
+            val hex = Integer.toHexString(full).toUpperCase(Locale.ROOT)
+            sb.append("\\x{").append(hex).append("}")
             i += 12
           } else if (Character.isLowSurrogate(cp.toChar)) {
             return None
