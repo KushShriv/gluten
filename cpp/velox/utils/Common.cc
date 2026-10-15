@@ -116,13 +116,16 @@ std::string translateJavaUnicodeToRe2(const std::string& pattern) {
 }
 
 bool validatePattern(const std::string& pattern, std::string& error) {
-  const std::string translated = translateJavaUnicodeToRe2(pattern);
-  auto re2 = compilePattern(translated);
+  // Validate the pattern exactly as Velox will compile it at execution time. The plan keeps the
+  // original literal, so translating a private copy here would approve patterns (e.g. a raw
+  // \uXXXX) that Velox then fails to compile at runtime instead of falling back to Spark. Java
+  // \uXXXX escapes are rewritten on the Scala side before the plan is built.
+  auto re2 = compilePattern(pattern);
   if (!re2->ok()) {
     error = "Pattern " + pattern + " compilation failed in RE2. Reason: " + re2->error();
     return false;
   }
-  return ensureRegexIsCompatible(translated, error);
+  return ensureRegexIsCompatible(pattern, error);
 }
 
 } // namespace gluten

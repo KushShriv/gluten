@@ -34,6 +34,8 @@ inline std::unique_ptr<re2::RE2> compilePattern(const std::string& pattern);
 /// Returns the input unchanged if no \uXXXX sequences are found (idempotent).
 std::string translateJavaUnicodeToRe2(const std::string& pattern);
 
+/// Returns true if RE2 can compile `pattern` as-is, i.e. exactly what Velox will receive. It does
+/// not translate: a raw Java \uXXXX escape is rejected so the caller falls back to Spark.
 bool validatePattern(const std::string& pattern, std::string& error);
 
 static inline void fastCopy(void* dst, const void* src, size_t n) {

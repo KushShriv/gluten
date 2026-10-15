@@ -79,18 +79,37 @@ TEST(CommonTest, translateJavaUnicodeToRe2_loneSurrogateLeftAlone) {
 }
 
 // ---------------------------------------------------------------------------
-// validatePattern — Phase 2 safeguard
+// validatePattern — validates the pattern exactly as Velox will compile it (no translation)
 // ---------------------------------------------------------------------------
 
-TEST(CommonTest, validatePattern_unicodeEscapeTranslatedBeforeRe2) {
-  // \u4e00 would cause RE2 compile failure without translation.
+TEST(CommonTest, validatePattern_rawUnicodeEscapeRejected) {
+  // A raw \uXXXX would be accepted here but fail in Velox at runtime, so it must fall back.
   std::string error;
-  EXPECT_TRUE(validatePattern("\\u4e00", error)) << "error: " << error;
+  EXPECT_FALSE(validatePattern("\\u4e00", error));
+  EXPECT_FALSE(validatePattern("[\\u4e00-\\u9fa5]+", error));
+  EXPECT_FALSE(validatePattern("[\\uD83D\\uDE00-\\uD83D\\uDE4F]", error));
 }
 
-TEST(CommonTest, validatePattern_cjkRangeTranslated) {
+TEST(CommonTest, validatePattern_translatedUnicodeEscapeAccepted) {
+  // What the Scala side sends after translation.
   std::string error;
-  EXPECT_TRUE(validatePattern("[\\u4e00-\\u9fa5]+", error)) << "error: " << error;
+  EXPECT_TRUE(validatePattern("\\x{4e00}", error)) << "error: " << error;
+  EXPECT_TRUE(validatePattern("[\\x{4e00}-\\x{9fa5}]+", error)) << "error: " << error;
+  EXPECT_TRUE(validatePattern("[\\x{1F600}-\\x{1F64F}]", error)) << "error: " << error;
+}
+
+TEST(CommonTest, validatePattern_translatorOutputAccepted) {
+  // translateJavaUnicodeToRe2 output must always pass the validator.
+  std::string error;
+  for (const char* p : {"\\u4e00", "[\\u4e00-\\u9fa5]+", "[\\uD83D\\uDE00-\\uD83D\\uDE4F]"}) {
+    EXPECT_TRUE(validatePattern(translateJavaUnicodeToRe2(p), error)) << p << " error: " << error;
+  }
+}
+
+TEST(CommonTest, validatePattern_escapedBackslashThenUAccepted) {
+  // "\\\\u0041" is a literal backslash followed by text, not a unicode escape.
+  std::string error;
+  EXPECT_TRUE(validatePattern("\\\\u0041", error)) << "error: " << error;
 }
 
 TEST(CommonTest, validatePattern_lookaheadRejected) {
@@ -106,11 +125,6 @@ TEST(CommonTest, validatePattern_lookbehindRejected) {
 TEST(CommonTest, validatePattern_simplePatternAccepted) {
   std::string error;
   EXPECT_TRUE(validatePattern("[a-z]+", error)) << "error: " << error;
-}
-
-TEST(CommonTest, validatePattern_surrogatePairAccepted) {
-  std::string error;
-  EXPECT_TRUE(validatePattern("[\\uD83D\\uDE00-\\uD83D\\uDE4F]", error)) << "error: " << error;
 }
 
 TEST(CommonTest, validatePattern_loneSurrogateRejected) {
