@@ -28,6 +28,27 @@ object Re2PatternUtils {
   private def isHex(c: Char): Boolean =
     (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 
+  /**
+   * Renders a pattern for error messages: quoted, control characters escaped, and truncated so that
+   * very long patterns do not bloat fallback reasons and logs.
+   */
+  def describePattern(pattern: String, maxLen: Int = 100): String = {
+    val sb = new StringBuilder("'")
+    var i = 0
+    while (i < pattern.length && sb.length < maxLen) {
+      pattern.charAt(i) match {
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case ch if ch < ' ' || ch == '\u007f' => sb.append("\\x%02X".format(ch.toInt))
+        case ch => sb.append(ch)
+      }
+      i += 1
+    }
+    if (i < pattern.length) sb.append(s"...(truncated, ${pattern.length} chars total)")
+    sb.append("'").toString
+  }
+
   /** Returns the code unit of a backslash-u escape with 4 hex digits starting at `i`, or -1. */
   private def unicodeEscapeAt(p: String, i: Int): Int = {
     if (
@@ -54,6 +75,9 @@ object Re2PatternUtils {
    *   - Escaped characters (e.g. an escaped backslash followed by `u0041`, or an escaped
    *     parenthesis) are copied verbatim and never reinterpreted.
    *   - Lookaround markers are ignored inside character classes, where `(` is a literal.
+   *   - Every backslash followed by a digit 1-9 is treated as a backreference and rejected (Java
+   *     parses it as a group reference, whatever follows), including inside a character class,
+   *     where Java itself raises an error.
    *   - Named groups `(?<name>...)` are supported by RE2 and are not rejected.
    */
   def translateJavaPatternToRe2(pattern: String): Option[String] = {
@@ -81,7 +105,9 @@ object Re2PatternUtils {
           }
         } else if (i + 1 < n) {
           val next = pattern.charAt(i + 1)
-          if (next >= '1' && next <= '9') return None // backreference
+          // Backreference. Any 1-9 is rejected, including inside a character class, where Java
+          // itself raises an error; falling back lets Spark report that same error.
+          if (next >= '1' && next <= '9') return None
           sb.append(c).append(next)
           i += 2
         } else {

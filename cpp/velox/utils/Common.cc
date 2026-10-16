@@ -115,6 +115,45 @@ std::string translateJavaUnicodeToRe2(const std::string& pattern) {
   return result;
 }
 
+namespace {
+
+// Renders a pattern for error messages: quoted, control characters escaped, and truncated so that
+// very long patterns do not bloat fallback reasons and logs.
+std::string describePattern(const std::string& pattern) {
+  constexpr size_t kMaxLen = 100;
+  std::string out = "'";
+  size_t i = 0;
+  for (; i < pattern.size() && out.size() < kMaxLen; ++i) {
+    const unsigned char ch = static_cast<unsigned char>(pattern[i]);
+    switch (ch) {
+      case '\n':
+        out += "\\n";
+        break;
+      case '\r':
+        out += "\\r";
+        break;
+      case '\t':
+        out += "\\t";
+        break;
+      default:
+        if (ch < 0x20 || ch == 0x7F) {
+          char buf[8];
+          std::snprintf(buf, sizeof(buf), "\\x%02X", ch);
+          out += buf;
+        } else {
+          out += static_cast<char>(ch);
+        }
+    }
+  }
+  if (i < pattern.size()) {
+    out += "...(truncated, " + std::to_string(pattern.size()) + " chars total)";
+  }
+  out += "'";
+  return out;
+}
+
+} // namespace
+
 bool validatePattern(const std::string& pattern, std::string& error) {
   // Validate the pattern exactly as Velox will compile it at execution time. The plan keeps the
   // original literal, so translating a private copy here would approve patterns (e.g. a raw
@@ -122,7 +161,13 @@ bool validatePattern(const std::string& pattern, std::string& error) {
   // \uXXXX escapes are rewritten on the Scala side before the plan is built.
   auto re2 = compilePattern(pattern);
   if (!re2->ok()) {
-    error = "Pattern " + pattern + " compilation failed in RE2. Reason: " + re2->error();
+    // RE2's own message usually repeats the whole pattern, so cap it as well.
+    std::string reason = re2->error();
+    constexpr size_t kMaxReasonLen = 100;
+    if (reason.size() > kMaxReasonLen) {
+      reason = reason.substr(0, kMaxReasonLen) + "...(truncated)";
+    }
+    error = "Pattern " + describePattern(pattern) + " compilation failed in RE2. Reason: " + reason;
     return false;
   }
   return ensureRegexIsCompatible(pattern, error);

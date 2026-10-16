@@ -112,6 +112,16 @@ TEST(CommonTest, validatePattern_escapedBackslashThenUAccepted) {
   EXPECT_TRUE(validatePattern("\\\\u0041", error)) << "error: " << error;
 }
 
+TEST(CommonTest, validatePattern_errorMessageEscapedAndTruncated) {
+  std::string error;
+  EXPECT_FALSE(validatePattern("(a\n", error));
+  EXPECT_NE(error.find("'(a\\n'"), std::string::npos) << error;
+  error.clear();
+  EXPECT_FALSE(validatePattern("(" + std::string(500, 'x'), error));
+  EXPECT_NE(error.find("truncated, 501 chars total"), std::string::npos) << error;
+  EXPECT_LT(error.size(), 400u) << error;
+}
+
 TEST(CommonTest, validatePattern_lookaheadRejected) {
   std::string error;
   EXPECT_FALSE(validatePattern("(?=x)", error));

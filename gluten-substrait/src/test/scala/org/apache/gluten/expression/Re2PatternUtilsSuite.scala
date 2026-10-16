@@ -69,4 +69,20 @@ class Re2PatternUtilsSuite extends AnyFunSuite {
     assert(tr("(?<name>a)") == Some("(?<name>a)"))
     assert(tr("(?:a)(?i)b") == Some("(?:a)(?i)b"))
   }
+
+  test("any backslash-digit escape is a backreference, even inside a character class") {
+    assert(tr("(a)\\1").isEmpty)
+    assert(tr("(a)\\12").isEmpty)
+    assert(tr("[\\1]").isEmpty)
+    // RE2 reads this as an octal escape and would run it, while Java rejects it: must fall back.
+    assert(tr("[\\12]").isEmpty)
+    assert(tr("\\\\1").isDefined)
+  }
+
+  test("describePattern quotes, escapes control characters and truncates") {
+    assert(Re2PatternUtils.describePattern("a(?=b)") == "'a(?=b)'")
+    assert(Re2PatternUtils.describePattern("a\nb\tc") == "'a\\nb\\tc'")
+    val long = Re2PatternUtils.describePattern("x" * 500)
+    assert(long.length < 200 && long.contains("truncated, 500 chars total"))
+  }
 }

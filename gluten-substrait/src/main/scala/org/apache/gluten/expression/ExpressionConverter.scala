@@ -997,8 +997,9 @@ object ExpressionConverter extends SQLConfHelper with Logging {
         val translated = Re2PatternUtils
           .translateJavaPatternToRe2(patStr.toString)
           .getOrElse(throw new GlutenNotSupportException(
-            s"Regex pattern '$patStr' uses constructs (lookahead/lookbehind/backreference) " +
-              s"or unpaired surrogates that RE2 cannot handle. Falling back to Spark."))
+            s"Regex pattern ${Re2PatternUtils.describePattern(patStr.toString)} uses " +
+              s"constructs (lookahead/lookbehind/backreference) or unpaired surrogates " +
+              s"that RE2 cannot handle. Falling back to Spark."))
         LiteralTransformer(Literal(UTF8String.fromString(translated), StringType))
       case other =>
         replaceWithExpressionTransformer0(other, attributeSeq, expressionsMap)
