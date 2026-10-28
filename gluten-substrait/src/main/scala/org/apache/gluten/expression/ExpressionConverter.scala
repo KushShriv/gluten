@@ -32,7 +32,6 @@ import org.apache.spark.sql.execution.ScalarSubquery
 import org.apache.spark.sql.hive.HiveUDFTransformer
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
-import org.apache.spark.unsafe.types.UTF8String
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -568,7 +567,7 @@ object ExpressionConverter extends SQLConfHelper with Logging {
           substraitExprName,
           Seq(
             replaceWithExpressionTransformer0(r.subject, attributeSeq, expressionsMap),
-            withRe2PatternTranslation(r.regexp, attributeSeq, expressionsMap),
+            withRewrittenRegexPattern(r.regexp, attributeSeq, expressionsMap),
             replaceWithExpressionTransformer0(r.rep, attributeSeq, expressionsMap),
             replaceWithExpressionTransformer0(r.pos, attributeSeq, expressionsMap)
           ),
@@ -579,7 +578,7 @@ object ExpressionConverter extends SQLConfHelper with Logging {
           substraitExprName,
           Seq(
             replaceWithExpressionTransformer0(r.left, attributeSeq, expressionsMap),
-            withRe2PatternTranslation(r.right, attributeSeq, expressionsMap)
+            withRewrittenRegexPattern(r.right, attributeSeq, expressionsMap)
           ),
           r
         )
@@ -588,7 +587,7 @@ object ExpressionConverter extends SQLConfHelper with Logging {
           substraitExprName,
           Seq(
             replaceWithExpressionTransformer0(r.subject, attributeSeq, expressionsMap),
-            withRe2PatternTranslation(r.regexp, attributeSeq, expressionsMap),
+            withRewrittenRegexPattern(r.regexp, attributeSeq, expressionsMap),
             replaceWithExpressionTransformer0(r.idx, attributeSeq, expressionsMap)
           ),
           r
@@ -598,7 +597,7 @@ object ExpressionConverter extends SQLConfHelper with Logging {
           substraitExprName,
           Seq(
             replaceWithExpressionTransformer0(r.subject, attributeSeq, expressionsMap),
-            withRe2PatternTranslation(r.regexp, attributeSeq, expressionsMap),
+            withRewrittenRegexPattern(r.regexp, attributeSeq, expressionsMap),
             replaceWithExpressionTransformer0(r.idx, attributeSeq, expressionsMap)
           ),
           r
@@ -611,7 +610,7 @@ object ExpressionConverter extends SQLConfHelper with Logging {
           substraitExprName,
           Seq(
             replaceWithExpressionTransformer0(instr.subject, attributeSeq, expressionsMap),
-            withRe2PatternTranslation(instr.regexp, attributeSeq, expressionsMap)
+            withRewrittenRegexPattern(instr.regexp, attributeSeq, expressionsMap)
           ),
           instr
         )
@@ -936,7 +935,7 @@ object ExpressionConverter extends SQLConfHelper with Logging {
         BackendsApiManager.getSparkPlanExecApiInstance.genStringSplitTransformer(
           substraitExprName,
           replaceWithExpressionTransformer0(ss.str, attributeSeq, expressionsMap),
-          withRe2PatternTranslation(ss.regex, attributeSeq, expressionsMap),
+          withRewrittenRegexPattern(ss.regex, attributeSeq, expressionsMap),
           replaceWithExpressionTransformer0(ss.limit, attributeSeq, expressionsMap),
           ss
         )
@@ -980,29 +979,17 @@ object ExpressionConverter extends SQLConfHelper with Logging {
   }
 
   /**
-   * Translates the pattern argument of a regex expression to RE2 syntax before it is written into
-   * the Substrait literal. If the pattern is a string literal, Java Unicode escapes (backslash-u
-   * followed by 4 hex digits) are converted to RE2's `\x{XXXX}` form. Patterns that contain
-   * constructs with no RE2 equivalent (lookaheads, lookbehinds, backreferences) throw
-   * [[GlutenNotSupportException]] to trigger graceful fallback. Non-literal (column-referenced)
-   * patterns, and all patterns on backends that do not use RE2, are passed through unchanged.
+   * Lets the backend rewrite the pattern argument of a regex expression (e.g. translate it to RE2
+   * syntax) before it is written into the Substrait literal. Backends reject patterns they cannot
+   * express by throwing [[GlutenNotSupportException]], which triggers fallback.
    */
-  private def withRe2PatternTranslation(
+  private def withRewrittenRegexPattern(
       patternChild: Expression,
       attributeSeq: Seq[Attribute],
       expressionsMap: Map[Class[_], String]): ExpressionTransformer = {
-    patternChild match {
-      case Literal(patStr: UTF8String, StringType)
-          if BackendsApiManager.getSparkPlanExecApiInstance.needsRe2PatternTranslation =>
-        val translated = Re2PatternUtils
-          .translateJavaPatternToRe2(patStr.toString)
-          .getOrElse(throw new GlutenNotSupportException(
-            s"Regex pattern ${Re2PatternUtils.describePattern(patStr.toString)} uses " +
-              s"constructs (lookahead/lookbehind/backreference) or unpaired surrogates " +
-              s"that RE2 cannot handle. Falling back to Spark."))
-        LiteralTransformer(Literal(UTF8String.fromString(translated), StringType))
-      case other =>
-        replaceWithExpressionTransformer0(other, attributeSeq, expressionsMap)
+    BackendsApiManager.getSparkPlanExecApiInstance.rewriteRegexPattern(patternChild) match {
+      case l: Literal => LiteralTransformer(l)
+      case other => replaceWithExpressionTransformer0(other, attributeSeq, expressionsMap)
     }
   }
 

@@ -16,14 +16,37 @@
  */
 package org.apache.gluten.expression
 
+import org.apache.gluten.exception.GlutenNotSupportException
+
+import org.apache.spark.sql.catalyst.expressions.{Expression, Literal}
+import org.apache.spark.sql.types.StringType
+import org.apache.spark.unsafe.types.UTF8String
+
 import java.util.Locale
 
 /**
- * Utilities for translating regex patterns from Java syntax to RE2 syntax. Used by
- * ExpressionConverter for any backend whose native engine is RE2 (Velox, Bolt); see
- * [[org.apache.gluten.backendsapi.SparkPlanExecApi#needsRe2PatternTranslation]].
+ * Utilities for translating regex patterns from Java syntax to RE2 syntax. Used by any backend
+ * whose native engine is RE2 (Velox, Bolt); see
+ * [[org.apache.gluten.backendsapi.SparkPlanExecApi#rewriteRegexPattern]].
  */
 object Re2PatternUtils {
+
+  /**
+   * Implements [[org.apache.gluten.backendsapi.SparkPlanExecApi#rewriteRegexPattern]] for RE2
+   * backends. A string literal pattern is translated to RE2 syntax; patterns with constructs that
+   * have no RE2 equivalent (lookaheads, lookbehinds, backreferences, unpaired surrogates) throw
+   * [[GlutenNotSupportException]] to trigger fallback. Non-literal patterns are returned unchanged.
+   */
+  def rewriteRegexPattern(pattern: Expression): Expression = pattern match {
+    case Literal(p: UTF8String, StringType) =>
+      val translated = translateJavaPatternToRe2(p.toString).getOrElse(
+        throw new GlutenNotSupportException(
+          s"Regex pattern ${describePattern(p.toString)} uses constructs " +
+            "(lookahead/lookbehind/backreference) or unpaired surrogates that RE2 cannot " +
+            "handle. Falling back to Spark."))
+      Literal(UTF8String.fromString(translated), StringType)
+    case other => other
+  }
 
   private def isHex(c: Char): Boolean =
     (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')

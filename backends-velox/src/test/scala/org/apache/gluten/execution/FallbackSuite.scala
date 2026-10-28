@@ -398,7 +398,7 @@ class FallbackSuite extends VeloxWholeStageTransformerSuite with AdaptiveSparkPl
           val fallbackReasons = events.flatMap(_.fallbackNodeToReason.values)
           assert(fallbackReasons.nonEmpty)
           // The lookbehind/lookahead pattern is now rejected at the JVM level by
-          // withRe2PatternTranslation before the native validator sees it, so the
+          // rewriteRegexPattern before the native validator sees it, so the
           // fallback reason contains the GlutenNotSupportException message instead
           // of the old native "regexp_extract due to Pattern ..." message.
           assert(
