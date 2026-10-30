@@ -1594,4 +1594,11 @@ class GlutenFunctionValidateSuite extends GlutenClickHouseWholeStageTransformerS
     }
   }
 
+  test("GLUTEN-6812: Support function spark_partition_id") {
+    val query = "select id, spark_partition_id() as pid from range(0, 20, 1, 4)"
+    compareResultsAgainstVanillaSpark(query, true, { _ => })
+    val pids = spark.sql(query).collect().map(_.getInt(1)).distinct.sorted
+    assert(pids.toSeq == Seq(0, 1, 2, 3))
+  }
+
 }
