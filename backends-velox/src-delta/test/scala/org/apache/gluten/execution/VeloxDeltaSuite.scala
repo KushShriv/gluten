@@ -80,7 +80,7 @@ class VeloxDeltaSuite extends DeltaSuite {
       }
   }
 
-  testWithMinSparkVersion("map-key pruning on delta scan with and without deletion vector", "3.4") {
+  test("map-key pruning on delta scan with and without deletion vector") {
     withTempPath {
       p =>
         val path = p.getCanonicalPath
